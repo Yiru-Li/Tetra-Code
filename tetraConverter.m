@@ -5,7 +5,8 @@ function out = tetraConverter(input, opts)
 %   out = TETRACONVERTER(input) tries to automatically detect the input
 %   type and returns the corresponding scalp MNI coordinates (if input is
 %   Tetra Code) or Tetra Code (if input is anything else). Each row in the
-%   input would have a corresponding output
+%   input would have a corresponding output, and the out-of-range value 
+%   "XX" is not accepted
 %
 %   out = TETRACONVERTER(input, 'intype', inputType) allows additional 
 %   specification of the input as either 'scalp', 'brain', 'tetra', 'CPC',

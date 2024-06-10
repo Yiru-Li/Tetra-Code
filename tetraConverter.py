@@ -3,8 +3,10 @@ import pandas as pd
 
 def tetraConverter(input_list, intype='auto', outtype=['auto']):
     """
-    Convert between MNI coordinates on the scalp/brain and Tetra Code. Also recognizes and supports conversion of CPC coordinates, Beam-style X/Y percentages, and 10-10 EEG electrode locations.
-    Tries to automatically detect the input type and returns the corresponding scalp MNI coordinates (if input is Tetra Code) or Tetra Code (if input is anything else). Each row in the input would have a corresponding output
+    Convert between MNI coordinates on the scalp/brain and Tetra Code.
+    Also recognizes and supports conversion of CPC coordinates, Beam-style X/Y percentages, and 10-10 EEG electrode locations.
+    Tries to automatically detect the input type and returns the corresponding scalp MNI coordinates (if input is Tetra Code) or Tetra Code (if input is anything else).
+    Each row in the input would have a corresponding output, and the out-of-range value "XX" is not accepted.
     
     Parameters:
         - input_list (2D numpy array or list of strings): inputs you want to convert

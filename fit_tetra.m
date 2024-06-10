@@ -1,6 +1,6 @@
 clear all
-addpath('./helper_functions/')
-addpath('./functions_from_SimNIBS/')
+addpath('helper_functions')
+addpath('functions_from_SimNIBS')
 [file, path] = uigetfile('*.msh');
 additional_coordinate_systems = {'Brain', 'CPC', 'XY', 'EEG'};
 [indx,tf] = listdlg('ListString',additional_coordinate_systems, 'Name', 'Select additional cooridnate systems');
