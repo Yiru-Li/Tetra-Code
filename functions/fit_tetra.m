@@ -1,6 +1,6 @@
 clear all
-% [file, path] = uigetfile('/Volumes/Ultra Touch/SimNIBS4_m2m/*.msh');
-[file, path] = uigetfile('/Volumes/MT_Predict/MT_Predict_Data/Data/qfTMS/HeadModels/*.msh');
+addpath('~/Applications/SimNIBS-4.0/matlab_tools')
+[file, path] = uigetfile('~');
 m2m_files = dir(path);
 EEG1010 = dir(fullfile(path, '**', 'EEG10-10_UI_Jurak_2007.csv'));
 lookup_initial_fit = readtable(fullfile(EEG1010.folder, EEG1010.name));
@@ -170,78 +170,76 @@ text(EEG_coords(d<1, 1)*1.1, EEG_coords(d<1, 2)*1.1, EEG_coords(d<1, 3)*1.1, EEG
 hold off
 view(90, 0)
 %% Calculate X and Y
-% if exist('X_percent', 'var')
-    Fpz = EEG_coords(strcmp(EEG_names, 'Fpz'), :);
-    Oz = EEG_coords(strcmp(EEG_names, 'Oz'), :);
-    sphere_center = dot(Cz-Fpz, Oz-Fpz)/norm(Oz-Fpz)*(Oz-Fpz)/norm(Oz-Fpz)+Fpz;
-    xnew = (Fpz-sphere_center)/norm(Fpz-sphere_center);
-    znew = (Cz-sphere_center)/norm(Cz-sphere_center);
-    ynew = -cross(xnew, znew);
-    transform = eye(3)/[xnew.' ynew.' znew.'];
-    tmp = (transform*(tet{:, {'MNI_x', 'MNI_y', 'MNI_z'}}-sphere_center).').';
-    Cz_new = (transform*(Cz-sphere_center).').';
-    Fpz_new = (transform*(Fpz-sphere_center).').';
-    Oz_new = (transform*(Oz-sphere_center).').';
-    Tnodes_new = (transform*(scalp.nodes-sphere_center).').';
-    HC = [];
-    for B = [max(Tnodes_new(:, 2)) min(Tnodes_new(:, 2))]
-        p = make_arc(Tnodes_new, Tedges, Fpz_new, [0 B 0], Oz_new);
-        if isempty(HC)
-            HC = p(:, 1:2);
-        else
-            HC = [HC; p(end:-1:1, 1:2)];
-        end
+Fpz = EEG_coords(strcmp(EEG_names, 'Fpz'), :);
+Oz = EEG_coords(strcmp(EEG_names, 'Oz'), :);
+sphere_center = dot(Cz-Fpz, Oz-Fpz)/norm(Oz-Fpz)*(Oz-Fpz)/norm(Oz-Fpz)+Fpz;
+xnew = (Fpz-sphere_center)/norm(Fpz-sphere_center);
+znew = (Cz-sphere_center)/norm(Cz-sphere_center);
+ynew = -cross(xnew, znew);
+transform = eye(3)/[xnew.' ynew.' znew.'];
+tmp = (transform*(tet{:, {'MNI_x', 'MNI_y', 'MNI_z'}}-sphere_center).').';
+Cz_new = (transform*(Cz-sphere_center).').';
+Fpz_new = (transform*(Fpz-sphere_center).').';
+Oz_new = (transform*(Oz-sphere_center).').';
+Tnodes_new = (transform*(scalp.nodes-sphere_center).').';
+HC = [];
+for B = [max(Tnodes_new(:, 2)) min(Tnodes_new(:, 2))]
+    p = make_arc(Tnodes_new, Tedges, Fpz_new, [0 B 0], Oz_new);
+    if isempty(HC)
+        HC = p(:, 1:2);
+    else
+        HC = [HC; p(end:-1:1, 1:2)];
     end
-    HC = unique(HC, 'rows', 'stable');
-    X_total = sum(sqrt(sum((HC([2:end 1], :)-HC(:, :)).^2, 2)));
-    HC = polyshape(HC(:, 1), HC(:, 2));
-    HC_vertices = [HC.Vertices; HC.Vertices(1, :)];
-    X_percent = zeros(height(tmp), 1);
-    Y_percent = zeros(height(tmp), 1);
-    empty_list = [];
-    w = waitbar(0, 'X/Y percentage calculation');
-    for h = 104840%1:height(tmp)
-        X = intersect(HC, [0 0; tmp(h, 1:2)*abs(max(200./tmp(h, 1:2)))]);
-        X = [X(all(X~=0, 2), :) 0]; % intersection with head circumference
-        seg = find(all(HC_vertices==X(1:2), 2)); % in case intersection lands on a vertex
+end
+HC = unique(HC, 'rows', 'stable');
+X_total = sum(sqrt(sum((HC([2:end 1], :)-HC(:, :)).^2, 2)));
+HC = polyshape(HC(:, 1), HC(:, 2));
+HC_vertices = [HC.Vertices; HC.Vertices(1, :)];
+X_percent = zeros(height(tmp), 1);
+Y_percent = zeros(height(tmp), 1);
+empty_list = [];
+w = waitbar(0, 'X/Y percentage calculation');
+for h = 1:height(tmp)
+    X = intersect(HC, [0 0; tmp(h, 1:2)*abs(max(200./tmp(h, 1:2)))]);
+    X = [X(all(X~=0, 2), :) 0]; % intersection with head circumference
+    seg = find(all(HC_vertices==X(1:2), 2)); % in case intersection lands on a vertex
+    if isempty(seg)
+        [~, seg] = max(sum(diff(sign(HC_vertices-X(1:2)))~=0, 2));
+        X_percent(h) = sum(sqrt(sum(([HC_vertices(2:seg, :); X(1:2)]-HC_vertices(1:seg, :)).^2, 2)))/X_total;
+    else
+        X_percent(h) = sum(sqrt(sum(([HC_vertices(2:seg, :)]-HC_vertices(1:seg-1, :)).^2, 2)))/X_total;
+    end
+    p = make_arc(Tnodes_new, Tedges, Cz_new, [X(1:2) Cz_new(3)], X);
+    Y_total = sum(sqrt(sum((p(1:end-1, :)-p(2:end, :)).^2, 2)));
+    if sqrt(sum((tmp(h, :)-X).^2))<1 % point close to head circumference
+        Y_percent(h) = sum(sqrt(sum((p(1:end-1, :)-[p(2:end-1, :); tmp(h, :)]).^2, 2)))/Y_total;
+    elseif tmp(h, 3)<0
+        p = make_arc(Tnodes_new, Tedges(all(ismember(Tedges, find(Tnodes_new(:, 3)>tmp(h, 3))), 2), :), Cz_new, [X(1:2) Cz_new(3)], tmp(h, :));
+        Y_percent(h) = sum(sqrt(sum((p(1:end-1, :)-p(2:end, :)).^2, 2)))/Y_total;
+    else
+        [~, seg] = max(sum(diff(sign(p-tmp(h, :)))~=0, 2));
         if isempty(seg)
-            [~, seg] = max(sum(diff(sign(HC_vertices-X(1:2)))~=0, 2));
-            X_percent(h) = sum(sqrt(sum(([HC_vertices(2:seg, :); X(1:2)]-HC_vertices(1:seg, :)).^2, 2)))/X_total;
-        else
-            X_percent(h) = sum(sqrt(sum(([HC_vertices(2:seg, :)]-HC_vertices(1:seg-1, :)).^2, 2)))/X_total;
-        end
-        p = make_arc(Tnodes_new, Tedges, Cz_new, [X(1:2) Cz_new(3)], X);
-        Y_total = sum(sqrt(sum((p(1:end-1, :)-p(2:end, :)).^2, 2)));
-        if sqrt(sum((tmp(h, :)-X).^2))<1 % point close to head circumference
-            Y_percent(h) = sum(sqrt(sum((p(1:end-1, :)-[p(2:end-1, :); tmp(h, :)]).^2, 2)))/Y_total;
-        elseif tmp(h, 3)<0
-            p = make_arc(Tnodes_new, Tedges(all(ismember(Tedges, find(Tnodes_new(:, 3)>tmp(h, 3))), 2), :), Cz_new, [X(1:2) Cz_new(3)], tmp(h, :));
-            Y_percent(h) = sum(sqrt(sum((p(1:end-1, :)-p(2:end, :)).^2, 2)))/Y_total;
-        else
-            [~, seg] = max(sum(diff(sign(p-tmp(h, :)))~=0, 2));
-            if isempty(seg)
-                [dist, id] = min(sqrt(sum(([Cz_new; X]-tmp(h , :)).^2, 2)));
-                if id==1
-                    Y_percent(h) = dist/Y_total;
-                else
-                    Y_percent(h) = sum(sqrt(sum((p(1:end, :)-[p(2:end, :); tmp(h, :)]).^2, 2)))/Y_total;
-                end
+            [dist, id] = min(sqrt(sum(([Cz_new; X]-tmp(h , :)).^2, 2)));
+            if id==1
+                Y_percent(h) = dist/Y_total;
             else
-                assert(length(seg)<=1, 'multiple matches');
-                Y_percent(h) = sum(sqrt(sum(([p(2:seg, :); tmp(h, :)]-p(1:seg, :)).^2, 2)))/Y_total;
+                Y_percent(h) = sum(sqrt(sum((p(1:end, :)-[p(2:end, :); tmp(h, :)]).^2, 2)))/Y_total;
             end
+        else
+            assert(length(seg)<=1, 'multiple matches');
+            Y_percent(h) = sum(sqrt(sum(([p(2:seg, :); tmp(h, :)]-p(1:seg, :)).^2, 2)))/Y_total;
         end
-        if Y_percent(h)>2
-            patch('Faces',scalp.triangles,'Vertices',Tnodes_new);
-            hold on
-            plot3(p(:, 1), p(:, 2), p(:, 3))
-            scatter3(tmp(h, 1), tmp(h, 2), tmp(h, 3))
-            hold off
-        end
-        waitbar(h/height(tmp), w)
     end
-    close(w)
-% end
+    if Y_percent(h)>2
+        patch('Faces',scalp.triangles,'Vertices',Tnodes_new);
+        hold on
+        plot3(p(:, 1), p(:, 2), p(:, 3))
+        scatter3(tmp(h, 1), tmp(h, 2), tmp(h, 3))
+        hold off
+    end
+    waitbar(h/height(tmp), w)
+end
+close(w)
 tet.X_percent = X_percent*100;
 tet.Y_percent = Y_percent*100;
 
@@ -328,4 +326,5 @@ else
     end
     p = [A; p(2:end-1, :)*transform+arc_center; C];
 end
+p = unique(p,'rows', 'stable');
 end
