@@ -1,6 +1,10 @@
 clear all
-addpath('~/Applications/SimNIBS-4.0/matlab_tools')
+addpath('./helper_functions/')
+addpath('./functions_from_SimNIBS/')
 [file, path] = uigetfile('~');
+additional_coordinate_systems = {'Brain', 'CPC', 'XY', 'EEG'};
+[indx,tf] = listdlg('ListString',additional_coordinate_systems, 'Name', 'Select additional cooridnate systems');
+additional_coordinate_systems = additional_coordinate_systems(indx);
 m2m_files = dir(path);
 EEG1010 = dir(fullfile(path, '**', 'EEG10-10_UI_Jurak_2007.csv'));
 lookup_initial_fit = readtable(fullfile(EEG1010.folder, EEG1010.name));
@@ -251,80 +255,3 @@ plot(Y_percent)
 disp(file)
 %% Write the table
 % writetable(tet(:, [9 3:8 10:14]), 'tet_code2MNI_lookup_extended.xlsx', 'Sheet', 'Reference', 'WriteMode', 'overwritesheet')
-%% Function definitions
-function [refs, arc_lengths] = extend_arc(p, ref_length, ref_points, total_points)
-dists = sqrt(sum((p(1:end-1, :)-p(2:end, :)).^2, 2));
-cum_dists = [0; cumsum(dists)];
-arc_lengths = linspace(0, ref_length/(ref_points-1)*(total_points-1), total_points);
-refs = zeros(total_points, 3);
-refs(1, :) = p(1, :);
-for n = 2:length(arc_lengths)
-    startID = find(cum_dists<arc_lengths(n), 1, 'last');
-    A = p(startID, :);
-    B = p(startID+1, :);
-    refs(n, :) = A+(B-A)*(arc_lengths(n)-cum_dists(startID))/dists(startID);
-end
-end
-
-function [refs, arc_lengths] = divide_arc(p, num_arc_refs)
-dists = sqrt(sum((p(1:end-1, :)-p(2:end, :)).^2, 2));
-cum_dists = [0; cumsum(dists)];
-arc_lengths = linspace(0, cum_dists(end), num_arc_refs);
-refs = zeros(num_arc_refs, 3);
-refs(1, :) = p(1, :);
-refs(end, :) = p(end, :);
-for n = 2:length(arc_lengths)-1
-    startID = find(cum_dists<arc_lengths(n), 1, 'last');
-    A = p(startID, :);
-    B = p(startID+1, :);
-    refs(n, :) = A+(B-A)*(arc_lengths(n)-cum_dists(startID))/dists(startID);
-end
-end
-
-function p = make_arc(Tnodes, Tedges, A, B, C, extend)
-arguments
-    Tnodes (:, 3)
-    Tedges (:, 2)
-    A (1, 3)
-    B (1, 3)
-    C (1, 3)
-    extend = false
-end
-arc_center = dot(B-C, A-C)/norm(A-C)*(A-C)/norm(A-C)+C;
-xnew = A-arc_center;
-xnew = xnew/norm(xnew);
-ynew = B-arc_center;
-ynew = ynew/norm(ynew);
-znew = cross(xnew, ynew);
-transform = [xnew; ynew; znew];
-% search edges intersecting xy-plane
-transformed_nodes = (Tnodes-arc_center)/transform;
-intersecting_edges = Tedges(xor(transformed_nodes(Tedges(:, 1), 3)>0, transformed_nodes(Tedges(:, 2), 3)>0), :);
-above = transformed_nodes(intersecting_edges(:, 1), :);
-below = transformed_nodes(intersecting_edges(:, 2), :);
-delta = above-below;
-delta_z = above(:, 3)./delta(:, 3);
-arc = above-(delta.*delta_z);
-A_transform = (A-arc_center)/transform;
-C_transform = (C-arc_center)/transform;
-arc = [A_transform; arc; C_transform];
-if extend
-    arc = arc(:, 1:2);
-    [~, p] = freeBoundary(delaunayTriangulation(arc(arc(:, 2)*3-arc(:, 1)>-100, :)));
-    p = [p zeros(height(p), 1)];
-    ID = dsearchn(p, A_transform);
-    p = [A; p([ID+1:end 1:ID-1], :)*transform+arc_center];
-else
-    arc = arc(arc(:, 2)>0, :);
-    [~, p] = freeBoundary(delaunayTriangulation(arc(:, 1:2)));
-    p = [p zeros(height(p), 1)];
-    IDs = dsearchn(p, [A_transform; C_transform]);
-    if IDs(1)>IDs(2)
-        p = p([IDs(1):end 1:IDs(2)], :);
-    else
-        p = p(IDs(1):IDs(2), :);
-    end
-    p = [A; p(2:end-1, :)*transform+arc_center; C];
-end
-p = unique(p,'rows', 'stable');
-end
